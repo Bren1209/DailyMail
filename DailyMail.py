@@ -7,35 +7,36 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
 
-# Daily Rise issue nr.
+# Daily Rise issue nr. -- Stopped working after issue #10, reverted back to #2, now fixed.
 
 issue_message = ''
 
 if os.path.isfile('issue_nr.csv'):
 
-    with open('issue_nr.csv', 'r', newline='') as file:
-        reader = csv.reader(file)
-        row1 = next(reader)
-        next_issue = int(row1[0]) + 1
+    with open('issue_nr.csv', 'r') as f1:
+        opened_file = f1.readlines()
+        last_issue = opened_file[-1]
 
-    with open('issue_nr.csv', 'w') as file2:
-        writer = csv.writer(file2)
-        writer.writerow(str(next_issue))
+    next_issue = int(last_issue) + 1
+
+    with open ('issue_nr.csv', 'w') as f2:
+        f2.write(str(next_issue))
 
 else:
 
-    with open('issue_nr.csv', 'w') as csvfile:
+    with open('issue_nr.csv', 'w', newline='') as csvfile:
         data = csv.writer(csvfile)
         data.writerow([0])
 
-    with open('issue_nr.csv', 'r', newline='') as file:
-        reader = csv.reader(file)
-        row1 = next(reader)
-        next_issue = int(row1[0]) + 1
+    with open('issue_nr.csv', 'r') as f1:
+        opened_file = f1.readlines()
+        last_issue = opened_file[-1]
 
-    with open('issue_nr.csv', 'w') as file2:
-        writer = csv.writer(file2)
-        writer.writerow(str(next_issue))
+    next_issue = int(last_issue) + 1
+
+    with open('issue_nr.csv', 'w') as f2:
+        f2.write(str(next_issue))
+
 
 issue_message = f'\n------ ISSUE NR. {next_issue} ------'
 
@@ -95,24 +96,21 @@ else:
 
 ###########################################
 
-# Get weather (double check date)
+# Get weather (double check date) - Got a better website, added more weather details
 
-r_weather = requests.get('https://www.weatherhq.co.za/durbanville/hourly/today').content
+r = requests.get('https://www.yr.no/place/South_Africa/Western_Cape/Cape_Town/').content
 
-weather_soup = BeautifulSoup(r_weather, 'html.parser')
+soup = BeautifulSoup(r, 'html.parser')
 
-weather_type = weather_soup.find_all('td', {'class': 'multi-hour-temperature hour-by-hour-font multi-vert-align red'})
-temp_list = []
+forecast = soup.find_all('tr')
+weather = []
+for item in forecast:
+    if '12:00' in item.text:
+        weather.append(item.td.text.replace(' ', ''))
+        weather.append(item.find('figure').text.replace('\n', ''))
+        weather.append(item.find('td', {'class': 'temperature plus'}).text)
 
-for temp in weather_type:
-    replace_tab = temp.text.replace('\t', '')
-    replace_newline = replace_tab.replace('\n', '')
-    replace_space = replace_newline.replace(' ', '')
-    temp_list.append(replace_space)
-
-max_temp = f'{max(temp_list[10:20])}'
-weather_message = f'\n\nMax Temperature Today: \n{max_temp}C'
-
+weather_message = f'\n\nToday\'s weather:\n\n{weather[0]}: {weather[2]} - {weather[1]}\n{weather[3]}: {weather[5]} - {weather[4]}'
 
 ############################################
 
@@ -205,19 +203,16 @@ joke_message = random.choice(joke_list[0][1:-1])
 
 ###############################################################
 
-# Relevant jobs:
+# Relevant jobs - Removed Pnet website due to structure change, unable to scrape with BS.
 
 indeed = 'https://www.indeed.co.za/jobs?q=python+developer&l=Cape+Town%2C+Western+Cape'
 careers24 = 'https://www.careers24.com/jobs/kw-python-developer/m-true/'
-pnet = 'https://www.pnet.co.za/5/job-search-detailed.html?stf=freeText&ns=1&qs=%5B%7B%22id%22%3A%2223000176%22%2C%22description%22%3A%22Cape+Town%22%2C%22type%22%3A%22geocity%22%7D%5D&companyID=0&cityID=23000176&sourceOfTheSearchField=resultlistpage%3Ageneral&searchOrigin=Resultlist_top-search&ke=python+developer&ws=Cape+Town&ra=30&sat=where'
 
 r_indeed = requests.get(indeed).content
 r_careers24 = requests.get(careers24).content
-r_pnet = requests.get(pnet).content
 
 soup_indeed = BeautifulSoup(r_indeed, 'html.parser')
 soup_careers24 = BeautifulSoup(r_careers24, 'html.parser')
-soup_pnet = BeautifulSoup(r_pnet, 'html.parser')
 
 indeed_desc = []
 indeed_links = []
@@ -225,22 +220,16 @@ indeed_links = []
 careers24_desc = []
 careers24_links = []
 
-pnet_desc = []
-pnet_links = []
 
-for job in soup_indeed.find_all('div', {'class': 'title'}):
+for job in soup_indeed.find_all('a', {'target': '_blank'}):
     indeed_desc.append(job.text.replace('\n', ''))
-    indeed_links.append('www.indeed.co.za' + (job.find('a')['href']))
+    indeed_links.append('www.indeed.co.za' + (job['href']))
 
 for job in soup_careers24.find_all('div', {'class': 'span6 job_search_content'}):
     careers24_desc.append(job.span.text)
     careers24_links.append('www.careers24.com' + (job.find('a')['href']))
 
-for job in soup_pnet.find_all('div', {'class': 'styled__JobItemFirstLineWrapper-sc-11l5pt9-2 fuVwNh'}):
-    pnet_desc.append(job.a.text)
-    pnet_links.append('www.pnet.co.za' + (job.find('a')['href']))
-
-top_selection = '\n\nMost relevant jobs from Indeed, Careers24 & PNet:\n\n'
+top_selection = '\n\nMost relevant jobs from Indeed & Careers24:\n\n'
 
 for i in range(len(indeed_desc)):
 
@@ -256,12 +245,6 @@ for i in range(len(careers24_desc)):
     elif 'internship' in careers24_desc[i].lower():
         top_selection += f'{careers24_desc[i]}\n{careers24_links[i]}\n\n\n'
 
-for i in range(len(pnet_desc)):
-
-    if 'python' in pnet_desc[i].lower():
-        top_selection += f'{pnet_desc[i]}\n{pnet_links[i]}\n\n\n'
-    elif 'internship' in pnet_desc[i].lower():
-        top_selection += f'{pnet_desc[i]}\n{pnet_links[i]}\n\n\n'
 
 ########################################################
 
@@ -305,6 +288,7 @@ content = f'{issue_message}' \
           f'###################' \
           f'{inspirational_message}'
 
+print(content)
 
 s = smtplib.SMTP(host='smtp.gmail.com', port=587)
 
